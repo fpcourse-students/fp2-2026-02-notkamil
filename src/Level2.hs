@@ -23,7 +23,13 @@ data B
 
 -- Здесь ваши объявления Var', Not', ::\/, ::/\ и ::->.
 
-type PropExample = Todo
+data Var' var
+data Not' prop
+data (::\/) left right
+data (::/\) left right
+data (::->) left right
+
+type PropExample = (Var' A ::\/ Var' B) ::-> ((Not' (Var' A)) ::-> (Var' B))
 
 
 -- 2.2. Формулы: DataKinds
@@ -32,8 +38,8 @@ type PropExample = Todo
 -- и строки уровня типов (кайнд Symbol, переменные "a" и "b"). Припишите PropDataExample
 -- точный кайнд явно — сейчас в заглушке стоит неверный.
 
-type PropDataExample :: Type -- Здесь ваш кайнд.
-type PropDataExample = Todo
+type PropDataExample :: Prop Symbol -- Здесь ваш кайнд.
+type PropDataExample = (Var "a" :\/ Var "b") :-> ((Not (Var "a")) :-> (Var "b"))
 
 
 -- 2.3. Функтор
@@ -42,7 +48,8 @@ type PropDataExample = Todo
 -- законов функтора.
 
 instance Functor (Vec n) where
-  fmap = todo "2.3"
+  fmap _ VNil = VNil
+  fmap f (VCons x xs) = VCons (f x) (fmap f xs)
 
 
 -- 2.4. Конкатенация
@@ -56,7 +63,8 @@ type family NatPlus (n :: Nat) (m :: Nat) :: Nat where
   NatPlus (Suc n) m = Suc (NatPlus n m)
 
 vconcat :: Vec n a -> Vec m a -> Vec (NatPlus n m) a
-vconcat = todo "2.4"
+vconcat VNil ys = ys
+vconcat (VCons elem xs) ys = VCons elem (vconcat xs ys)
 
 
 -- 2.5. Гетерогенный zip
@@ -66,10 +74,14 @@ vconcat = todo "2.4"
 -- в том числе разной длины (лишний хвост отбрасывается, как у обычного zip).
 
 type family Zip (as :: [Type]) (bs :: [Type]) :: [Type] where
-  Zip as bs = '[] -- Заглушка: замените уравнениями.
+  Zip '[] _ = '[]
+  Zip _ '[] = '[]
+  Zip (a ': as) (b ': bs) = (a, b) ': (Zip as bs)
 
 hzip :: HList as -> HList bs -> HList (Zip as bs)
-hzip = todo "2.5"
+hzip HNil _ = HNil
+hzip _ HNil = HNil
+hzip (HCons a as) (HCons b bs) = HCons (a, b) (hzip as bs)
 
 
 -- 2.6. Полиморфизм в кайндах
@@ -83,10 +95,10 @@ newtype Tagged (tag :: k) (a :: Type) = MkTagged a
 
 data TemperatureUnit = Celsius | Fahrenheit | Kelvin
 
-type Temperature = Tagged -- Заглушка: кайнд Temperature пока полиморфен.
+type Temperature = Tagged @TemperatureUnit
 
 c2f :: Temperature Celsius Double -> Temperature Fahrenheit Double
-c2f = todo "2.6"
+c2f (MkTagged c) = MkTagged $ c * 1.8 + 32
 
 
 -- 2.7. Числа Чёрча в обёртке
@@ -103,19 +115,19 @@ toInt :: Church -> Int
 toInt (Church n) = n (+ 1) 0
 
 zero :: Church
-zero = todo "2.7 zero"
+zero = Church (\ _ x -> x)
 
 suc :: Church -> Church
-suc = todo "2.7 suc"
+suc (Church n) = Church (\ f x -> n f $ f x)
 
 plus :: Church -> Church -> Church
-plus = todo "2.7 plus"
+plus (Church n) (Church m) = Church (\ f x -> n f $ m f x)
 
 mult :: Church -> Church -> Church
-mult = todo "2.7 mult"
+mult (Church n) (Church m) = Church (\ f x -> n (m f) x)
 
 fromInt :: Int -> Church
-fromInt = todo "2.7 fromInt"
+fromInt n = if n > 0 then suc $ fromInt $ n - 1 else zero
 
 
 -- 2.8. Пара Чёрча
@@ -132,7 +144,7 @@ pfst :: Pair a b -> a
 pfst p = p const
 
 psnd :: Pair a b -> b
-psnd _ = todo "2.8 psnd"
+psnd p = p (\ _ -> id)
 
 pswap :: Pair a b -> Pair b a
-pswap _ = todo "2.8 pswap"
+pswap p f = p (flip f)
